@@ -7,21 +7,11 @@
 #include <fstream>
 #include <regex>
 
+#include <winuser.h>
+
 using json = nlohmann::json;
 
-http::Response MakeRequest()
-{
-    http::Request request{"http://localhost/test"};
-
-    json body;
-    body["test"] = 12;
-
-    std::string strbody = body.dump(-1, ' ', true);
-
-    const auto response = request.send("POST", strbody, {{"Content-Type", "application/json"}});
-    return response;
-}
-
+// 读取文件内容
 std::string readFile(std::string filename)
 {
     std::ifstream file(filename, std::ios_base::binary | std::ios_base::in);
@@ -60,6 +50,11 @@ int main(int argc, const char **argv)
     }};
 
     argagg::parser_results args;
+    auto exepath = std::string(argv[0]);
+    auto defaultConfigPath = exepath.substr(0, exepath.find_last_of("/\\")) + "/config.json";
+
+    std::cout << "Command: " << exepath << '\n'
+              << "Default config: " << defaultConfigPath << '\n';
 
     try
     {
@@ -77,14 +72,13 @@ int main(int argc, const char **argv)
                   << argparser << '\n';
         return 0;
     }
-
-    auto configPath = args["config"].as<std::string>("config.json");
     if (args.pos.size() != 1)
     {
-        std::cerr << "Usage: aria2win.exe [options] TARGET\n"
-                  << argparser << '\n';
+        std::cerr << "Need ONE TARGET\n";
+        MessageBoxA(0, "Need ONE TARGET", "Error", 0);
         return 1;
     }
+    auto configPath = args["config"].as<std::string>(defaultConfigPath);
     auto target = args.as<std::string>(0);
 
     // 加载配置
@@ -117,20 +111,23 @@ int main(int argc, const char **argv)
     http::Request request{url};
 
     std::string method;
+    json params;
     // 若为本地文件
     if (std::regex_search(target, std::regex(R"(^(https?|ftps?|sftp)://|^magnet:)")))
     {
         method = "aria2.addUri";
+        params = {{target}};
     }
     else
     {
         try
         {
-            target = base64_encode(readFile(target));
+            params = {base64_encode(readFile(target))};
         }
         catch (const std::exception &e)
         {
             std::cerr << e.what() << '\n';
+            MessageBoxA(0, e.what(), "Error", 0);
             return 1;
         }
         if (std::regex_search(target, std::regex(R"(\.torrent$)")))
@@ -143,14 +140,9 @@ int main(int argc, const char **argv)
         }
     }
 
-    json params;
     if (token != "")
     {
-        params = {"token:" + token, {target}};
-    }
-    else
-    {
-        params = {target};
+        params.insert(params.begin(), "token:" + token);
     }
     json body = {
         {"jsonrpc", "2.0"},
@@ -164,10 +156,15 @@ int main(int argc, const char **argv)
     {
         const auto response = request.send("POST", body.dump(), {{"Content-Type", "application/json"}}, timeout);
         std::cout << "Code: " << response.status.code << '\n';
+        std::string msg = std::string{response.body.begin(), response.body.end()};
         std::cout << std::string{response.body.begin(), response.body.end()} << '\n'; // print the result
+        MessageBoxA(0, msg.c_str(), "Success", 0);
     }
     catch (const std::exception &e)
     {
         std::cerr << "Error: " << e.what() << '\n';
+        MessageBoxA(0, e.what(), "Error", 0);
+        return 1;
     }
+    return 0;
 }

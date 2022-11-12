@@ -5,7 +5,8 @@ add_rules("mode.debug", "mode.release")
 
 target("aria2win")
     set_kind("binary")
-    add_links("ws2_32")
+    add_links("ws2_32") -- for http request
+    add_links("user32") -- for MessageBox
     add_files("main.cpp")
 
 --
