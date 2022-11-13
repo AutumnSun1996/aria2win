@@ -1,7 +1,9 @@
-﻿// aria2c 客户端库
+﻿// aria2c jsonrpc 客户端
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <codecvt> // codecvt_utf8
+#include <locale>  // wstring_convert
 
 #include "lib/HTTPRequest.hpp"
 #include "lib/json.hpp"
@@ -45,6 +47,92 @@ std::string getString(json config, std::string defaultValue)
     }
 }
 
+// Convert from string to utf-8 string
+// Based on: https://stackoverflow.com/a/4023686 and https://json.nlohmann.me/home/faq/#wide-string-handling
+std::string toUtf8String(std::string sourceString)
+{
+    LPCSTR rawString = sourceString.c_str();
+    int retval;
+    retval = MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, rawString, -1, NULL, 0);
+    if (!SUCCEEDED(retval))
+        return NULL;
+
+    LPWSTR lpWideCharStr = (LPWSTR)malloc(retval * sizeof(WCHAR));
+    if (lpWideCharStr == NULL)
+        return NULL;
+
+    retval = MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS, rawString, -1, lpWideCharStr, retval);
+    if (!SUCCEEDED(retval))
+    {
+        free(lpWideCharStr);
+        return NULL;
+    }
+
+    static std::wstring_convert<std::codecvt_utf8<wchar_t>> utf8_conv;
+    return utf8_conv.to_bytes(lpWideCharStr);
+}
+
+// Based on: https://stackoverflow.com/a/4023686 
+LPSTR *CommandLineToArgv(LPWSTR lpWideCharStr, INT *pNumArgs)
+{
+    int retval;
+
+    int numArgs;
+    LPWSTR *args;
+    args = CommandLineToArgvW(lpWideCharStr, &numArgs);
+    free(lpWideCharStr);
+    if (args == NULL)
+        return NULL;
+
+    int storage = numArgs * sizeof(LPSTR);
+    for (int i = 0; i < numArgs; ++i)
+    {
+        BOOL lpUsedDefaultChar = FALSE;
+        retval = WideCharToMultiByte(CP_ACP, 0, args[i], -1, NULL, 0, NULL, &lpUsedDefaultChar);
+        if (!SUCCEEDED(retval))
+        {
+            LocalFree(args);
+            return NULL;
+        }
+
+        storage += retval;
+    }
+
+    LPSTR *result = (LPSTR *)LocalAlloc(LMEM_FIXED, storage);
+    if (result == NULL)
+    {
+        LocalFree(args);
+        return NULL;
+    }
+
+    int bufLen = storage - numArgs * sizeof(LPSTR);
+    LPSTR buffer = ((LPSTR)result) + numArgs * sizeof(LPSTR);
+    for (int i = 0; i < numArgs; ++i)
+    {
+        assert(bufLen > 0);
+        BOOL lpUsedDefaultChar = FALSE;
+        retval = WideCharToMultiByte(CP_ACP, 0, args[i], -1, buffer, bufLen, NULL, &lpUsedDefaultChar);
+        if (!SUCCEEDED(retval))
+        {
+            LocalFree(result);
+            LocalFree(args);
+            return NULL;
+        }
+
+        result[i] = buffer;
+        buffer += retval;
+        bufLen -= retval;
+    }
+
+    LocalFree(args);
+
+    *pNumArgs = numArgs;
+    return result;
+}
+
+/* @brief
+    主函数: 分析目标类型, 通过jsonrpc触发相应的下载任务
+*/
 int main(int argc, const char **argv)
 {
     // 加载命令行参数
@@ -84,6 +172,7 @@ int main(int argc, const char **argv)
     }
     auto configPath = args["config"].as<std::string>(defaultConfigPath);
     auto target = args.as<std::string>(0);
+    std::cout << "Download: " << target << '\n';
 
     // 加载配置
     json config;
@@ -120,7 +209,7 @@ int main(int argc, const char **argv)
     if (std::regex_search(target, std::regex(R"(^(https?|ftps?|sftp)://|^magnet:)")))
     {
         method = "aria2.addUri";
-        params = {{target}};
+        params = {{toUtf8String(target)}};
     }
     else
     {
@@ -155,13 +244,14 @@ int main(int argc, const char **argv)
         {"params", params},
     };
 
-    std::cout << "Request: " << body << '\n';
+    std::string bodyStr = body.dump(-1, ' ', true);
+    std::cout << "Request: " << bodyStr.substr(0, 500) << '\n';
     try
     {
-        const auto response = request.send("POST", body.dump(), {{"Content-Type", "application/json"}}, timeout);
+        const auto response = request.send("POST", bodyStr, {{"Content-Type", "application/json"}}, timeout);
         std::cout << "Code: " << response.status.code << '\n';
         std::string msg = std::string{response.body.begin(), response.body.end()};
-        std::cout << std::string{response.body.begin(), response.body.end()} << '\n'; // print the result
+        std::cout << msg << '\n'; // print the result
         ShowMessage(msg.c_str(), "Success");
     }
     catch (const std::exception &e)
@@ -182,6 +272,6 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                    PSTR lpCmdLine, INT nCmdShow)
 {
     int argc = 0;
-    auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    auto argv = CommandLineToArgv(GetCommandLineW(), &argc);
     return main(argc, (const char **)argv);
 }
