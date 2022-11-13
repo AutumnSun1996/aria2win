@@ -1,13 +1,17 @@
 ﻿// aria2c 客户端库
-#include "lib/HTTPRequest.hpp"
-#include "lib/json.hpp"
-#include "lib/argagg.hpp"
-#include "lib/base64.hpp"
 #include <iostream>
 #include <fstream>
 #include <regex>
 
+#include "lib/HTTPRequest.hpp"
+#include "lib/json.hpp"
+#include "lib/argagg.hpp"
+#include "lib/base64.hpp"
+#include "lib/message.hpp"
+
+#include <windows.h>
 #include <winuser.h>
+#include <shellapi.h>
 
 using json = nlohmann::json;
 
@@ -75,7 +79,7 @@ int main(int argc, const char **argv)
     if (args.pos.size() != 1)
     {
         std::cerr << "Need ONE TARGET\n";
-        MessageBoxA(0, "Need ONE TARGET", "Error", 0);
+        ShowMessage("Need ONE TARGET", "Error");
         return 1;
     }
     auto configPath = args["config"].as<std::string>(defaultConfigPath);
@@ -127,7 +131,7 @@ int main(int argc, const char **argv)
         catch (const std::exception &e)
         {
             std::cerr << e.what() << '\n';
-            MessageBoxA(0, e.what(), "Error", 0);
+            ShowMessage(e.what(), "Error");
             return 1;
         }
         if (std::regex_search(target, std::regex(R"(\.torrent$)")))
@@ -158,13 +162,26 @@ int main(int argc, const char **argv)
         std::cout << "Code: " << response.status.code << '\n';
         std::string msg = std::string{response.body.begin(), response.body.end()};
         std::cout << std::string{response.body.begin(), response.body.end()} << '\n'; // print the result
-        MessageBoxA(0, msg.c_str(), "Success", 0);
+        ShowMessage(msg.c_str(), "Success");
     }
     catch (const std::exception &e)
     {
         std::cerr << "Error: " << e.what() << '\n';
-        MessageBoxA(0, e.what(), "Error", 0);
+        ShowMessage(e.what(), "Error");
         return 1;
     }
     return 0;
+}
+
+/* @brief
+Windows GUI 入口函数
+
+解析参数并调用main函数
+*/
+INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+                   PSTR lpCmdLine, INT nCmdShow)
+{
+    int argc = 0;
+    auto argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    return main(argc, (const char **)argv);
 }

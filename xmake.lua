@@ -3,14 +3,16 @@ add_rules("mode.debug", "mode.release")
 -- add_requires("nlohmann_json")
 
 target("aria2win")
-    -- set_kind("binary")
+    set_kind("binary")
     -- TODO: 配置为非QT的GUI项目
-    add_rules("qt.quickapp")
+    --     add_deps("qt.qrc", "qt.moc", "qt._wasm_app")
+    -- add_rules("qt.quickapp")
+    add_cxflags("-fvisibility=hidden")
+    add_ldflags("-subsystem:windows", "-entry:mainCRTStartup", {force = true})
 
     -- add_defines()
     -- add_cxxflags("-mwindows", {force = true})
-    add_links("ws2_32") -- for http request
-    add_links("user32") -- for MessageBox
+    add_links("ws2_32", "user32", "shell32") -- for http request; MessageBox; CommandLineToArgvW
     add_files("main.cpp")
     add_files("*.rc")
 
