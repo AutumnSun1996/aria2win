@@ -1,5 +1,7 @@
 //
 //  HTTPRequest
+//  From: https://github.com/elnormous/HTTPRequest
+//  (The Unlicense)
 //
 
 #ifndef HTTPREQUEST_HPP
