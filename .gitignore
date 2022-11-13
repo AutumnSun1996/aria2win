@@ -2,3 +2,5 @@
 /build
 .xmake
 .vscode
+/archive
+/config.json
