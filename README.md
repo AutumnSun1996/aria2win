@@ -1,6 +1,6 @@
 # Aira2win 极简aria2 windows客户端
 
-极简的aria2 windows客户端(exe大小为259KB, 无后台进程)
+极简的aria2 windows客户端(exe大小为几百KB, 无后台进程)
 
 可关联.torrent等文件, 实现打开文件/命令行输入链接地址后自动触发下载
 
