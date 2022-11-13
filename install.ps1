@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Set File Type Association for aria2win.exe
+    Set File Type Association and Update PATH for aria2win.exe
 
 .DESCRIPTION
-    Set File/Protocol Type Association Default Application for aria2win.exe
+    Set File Type Association Default Application and Update PATH for aria2win.exe
     Should work on Windows 8/10/11
-    Based on https://github.com/DanysysTeam/PS-SFTA
+    Based on https://github.com/DanysysTeam/PS-SFTA and https://stackoverflow.com/a/69239861
 
 #>
 
@@ -511,6 +511,49 @@ function Set-FTA {
 
 }
 
+function Add-Path {
+  param(
+    [Parameter(Mandatory, Position=0)]
+    [string] $LiteralPath,
+
+    [ValidateSet('User', 'CurrentUser', 'Machine', 'LocalMachine')]
+    [string] $Scope 
+  )
+
+  Set-StrictMode -Version 1; $ErrorActionPreference = 'Stop'
+
+  $isMachineLevel = $Scope -in 'Machine', 'LocalMachine'
+  if ($isMachineLevel -and -not $($ErrorActionPreference = 'Continue'; net session 2>$null)) { throw "You must run AS ADMIN to update the machine-level Path environment variable." }  
+
+  $regPath = 'registry::' + ('HKEY_CURRENT_USER\Environment', 'HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment')[$isMachineLevel]
+
+  # Note the use of the .GetValue() method to ensure that the *unexpanded* value is returned.
+  $currDirs = (Get-Item -LiteralPath $regPath).GetValue('Path', '', 'DoNotExpandEnvironmentNames') -split ';' -ne ''
+
+  if ($LiteralPath -in $currDirs) {
+    Write-Verbose "Already present in the persistent $(('user', 'machine')[$isMachineLevel])-level Path: $LiteralPath"
+    return
+  }
+
+  $newValue = ($currDirs + $LiteralPath) -join ';'
+
+  # Update the registry.
+  Set-ItemProperty -Type ExpandString -LiteralPath $regPath Path $newValue
+
+  # Broadcast WM_SETTINGCHANGE to get the Windows shell to reload the
+  # updated environment, via a dummy [Environment]::SetEnvironmentVariable() operation.
+  $dummyName = [guid]::NewGuid().ToString()
+  [Environment]::SetEnvironmentVariable($dummyName, 'foo', 'User')
+  [Environment]::SetEnvironmentVariable($dummyName, [NullString]::value, 'User')
+
+  # Finally, also update the current session's `$env:Path` definition.
+  # Note: For simplicity, we always append to the in-process *composite* value,
+  #        even though for a -Scope Machine update this isn't strictly the same.
+  $env:Path = ($env:Path -replace ';$') + ';' + $LiteralPath
+
+  Write-Verbose "`"$LiteralPath`" successfully appended to the persistent $(('user', 'machine')[$isMachineLevel])-level Path and also the current-process value."
+}
+
 # Get exe path
 $ProgramPath = Resolve-Path -Path "./aria2win.exe"
 $ProgId = "Application/aria2win.exe"
@@ -521,3 +564,11 @@ Write-Output "Register Success"
 Set-FTA -ProgId $ProgId -Extension .meta4
 Set-FTA -ProgId $ProgId -Extension .torrent
 Write-Output "Set FileType Association Success"
+
+# Add current dir to $PATH
+$ProgramDir = Resolve-Path -Path "."
+Add-Path $ProgramDir
+Write-Output "Update PATH Success"
+
+# Wait to exit
+Read-Host -Prompt "Press any key to exit"
