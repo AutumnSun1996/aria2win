@@ -9,7 +9,7 @@
 
 ## 下载和安装
 
-从release页面下载zip文件, 解压缩到任意文件夹
+从[release页面](https://github.com/AutumnSun1996/aria2win/releases)下载zip文件, 解压到任意文件夹
 
 右键单击'install.ps1', 选择'使用Powershell运行'(或进行[手动配置](#手动配置))
 
