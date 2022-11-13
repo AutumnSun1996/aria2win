@@ -1,13 +1,30 @@
 add_rules("mode.debug", "mode.release")
 
 -- add_requires("nlohmann_json")
--- add_requires("p-ranav/argparse")
 
 target("aria2win")
-    set_kind("binary")
+    -- set_kind("binary")
+    -- TODO: 配置为非QT的GUI项目
+    add_rules("qt.quickapp")
+
+    -- add_defines()
+    -- add_cxxflags("-mwindows", {force = true})
     add_links("ws2_32") -- for http request
     add_links("user32") -- for MessageBox
     add_files("main.cpp")
+    add_files("*.rc")
+
+    after_build(function()
+        if is_mode("release") then
+            print("Copy to current dir...")
+            local suc = os.trycp("build/windows/x64/release/aria2win.exe", "aria2win.exe")
+            print(suc and "Done" or "Failed")
+            if suc then
+                print("Compress with upx...")
+                os.exec("D:/Software/SysTools/upx-4.0.0-win64/upx.exe %s", "aria2win.exe")
+            end
+        end
+    end)
 
 --
 -- If you want to known more usage about xmake, please see https://xmake.io
