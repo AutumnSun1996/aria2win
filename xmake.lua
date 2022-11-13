@@ -1,17 +1,10 @@
 add_rules("mode.debug", "mode.release")
 
--- add_requires("nlohmann_json")
-
 target("aria2win")
     set_kind("binary")
-    -- TODO: 配置为非QT的GUI项目
-    --     add_deps("qt.qrc", "qt.moc", "qt._wasm_app")
-    -- add_rules("qt.quickapp")
     add_cxflags("-fvisibility=hidden")
     add_ldflags("-subsystem:windows", "-entry:mainCRTStartup", {force = true})
 
-    -- add_defines()
-    -- add_cxxflags("-mwindows", {force = true})
     add_links("ws2_32", "user32", "shell32") -- for http request; MessageBox; CommandLineToArgvW
     add_files("main.cpp")
     add_files("*.rc")
@@ -23,7 +16,7 @@ target("aria2win")
             print(suc and "Done" or "Failed")
             if suc then
                 print("Compress with upx...")
-                os.exec("D:/Software/SysTools/upx-4.0.0-win64/upx.exe %s", "aria2win.exe")
+                os.exec("upx.exe %s", "aria2win.exe")
             end
         end
     end)
