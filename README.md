@@ -1,4 +1,4 @@
-# Aira2win 极简aria2 windows客户端
+# Aria2win 极简aria2 windows客户端
 
 极简的aria2 windows客户端(exe大小为几百KB, 无后台进程)
 
